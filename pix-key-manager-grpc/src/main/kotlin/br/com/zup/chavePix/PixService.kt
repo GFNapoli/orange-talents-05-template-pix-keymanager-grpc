@@ -23,7 +23,8 @@ class PixService(@Inject val repository: ChavePixRepository): PixServiceGrpc.Pix
         println(TiposChavesPix.validaChave(request.key))
         val tipoChave = TiposChavesPix.validaChave(request.key)
         println(tipoChave)
-        if(tipoChave!! != TiposChavesPix.fromValue(request.tipoChave.toString().toLowerCase())){
+        if(tipoChave!! != TiposChavesPix.fromValue(request.tipoChave.toString().toLowerCase())
+            || TiposChavesPix.fromValue(request.tipoChave.toString().toLowerCase()) == TiposChavesPix.INVALIDA){
             responseObserver?.onError(Status.INVALID_ARGUMENT
                 .withDescription("Tipo de chave não condiz com chave recebida ou chave invalida")
                 .asRuntimeException())
