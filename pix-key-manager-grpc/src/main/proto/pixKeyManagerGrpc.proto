@@ -9,6 +9,7 @@ package br.com.zup;
 
 service PixService {
   rpc novaChavePix (NovaPixKeyRequest) returns (NovaPixKeyResponse) {}
+  rpc deletaChavePix (DeletaKeyRequest) returns (DeletaKeyResponse) {}
 }
 
 enum  TipoChave{
@@ -34,4 +35,13 @@ message NovaPixKeyRequest {
 
 message NovaPixKeyResponse {
   int64 pixId = 1;
+}
+
+message DeletaKeyRequest{
+  int64 pixId = 1;
+  string idCliente = 2;
+}
+
+message DeletaKeyResponse{
+  string mensagem = 1;
 }

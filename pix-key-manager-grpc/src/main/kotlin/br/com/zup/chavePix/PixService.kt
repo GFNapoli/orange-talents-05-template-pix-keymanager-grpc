@@ -1,8 +1,6 @@
 package br.com.zup.chavePix
 
-import br.com.zup.NovaPixKeyRequest
-import br.com.zup.NovaPixKeyResponse
-import br.com.zup.PixServiceGrpc
+import br.com.zup.*
 import io.grpc.Status
 import io.grpc.stub.StreamObserver
 import java.util.*
@@ -20,9 +18,7 @@ class PixService(@Inject val repository: ChavePixRepository): PixServiceGrpc.Pix
                 .asRuntimeException())
             responseObserver?.onCompleted()
         }
-        println(TiposChavesPix.validaChave(request.key))
         val tipoChave = TiposChavesPix.validaChave(request.key)
-        println(tipoChave)
         if(tipoChave!! != TiposChavesPix.fromValue(request.tipoChave.toString().toLowerCase())
             || TiposChavesPix.fromValue(request.tipoChave.toString().toLowerCase()) == TiposChavesPix.INVALIDA){
             responseObserver?.onError(Status.INVALID_ARGUMENT
@@ -43,5 +39,32 @@ class PixService(@Inject val repository: ChavePixRepository): PixServiceGrpc.Pix
             responseObserver?.onNext(NovaPixKeyResponse.newBuilder().setPixId(chavePix.id!!).build())
         }
         responseObserver?.onCompleted()
+    }
+
+    override fun deletaChavePix(request: DeletaKeyRequest?, responseObserver: StreamObserver<DeletaKeyResponse>?) {
+
+        val chave = repository.findById(request!!.pixId)
+
+        if (chave.isEmpty){
+            responseObserver?.onError(Status.NOT_FOUND
+                .withDescription("Chave não encontrada")
+                .asRuntimeException())
+            return
+        }
+
+        println(chave.get().idCliente != request!!.idCliente)
+        if(chave.get().idCliente != request!!.idCliente){
+            responseObserver?.onError(Status.INVALID_ARGUMENT
+                .withDescription("Apenas o dono da chave pode solicitar a deleção")
+                .asRuntimeException())
+            return
+        }
+
+        repository.deleteById(chave.get().id)
+        responseObserver?.onNext(DeletaKeyResponse.newBuilder()
+            .setMensagem("Exclusao concluida com sucesso")
+            .build())
+        responseObserver?.onCompleted()
+
     }
 }

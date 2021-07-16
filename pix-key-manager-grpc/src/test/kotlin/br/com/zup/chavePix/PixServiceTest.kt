@@ -1,9 +1,6 @@
 package br.com.zup.chavePix
 
-import br.com.zup.NovaPixKeyRequest
-import br.com.zup.PixServiceGrpc
-import br.com.zup.TipoChave
-import br.com.zup.TipoConta
+import br.com.zup.*
 import io.grpc.ManagedChannel
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -75,7 +72,63 @@ internal class PixServiceTest(
             assertEquals(Status.INVALID_ARGUMENT.code, status.code)
             assertEquals(status.description, "Tipo de chave não condiz com chave recebida ou chave invalida")
         }
+    }
 
+    @Test
+    internal fun `deve deletar a chave pix`() {
+        repository.deleteAll()
+
+        val teste = ChavePix("de95a228-1f27-4ad2-907e-e5a2d816e9bc", "31643468081",
+            TiposChavesPix.CPF, TipoConta.CORRENTE)
+        repository.save(teste)
+
+        val response = grpcClient.deletaChavePix(DeletaKeyRequest.newBuilder()
+            .setPixId(teste.id!!)
+            .setIdCliente(teste.idCliente)
+            .build())
+
+        with(response){
+            assertNotNull(response.mensagem)
+            assertTrue(!repository.existsById(teste.id))
+        }
+    }
+
+    @Test
+    internal fun `delecao de chave nao existente`() {
+        repository.deleteAll()
+
+        val response = assertThrows<StatusRuntimeException>{
+            grpcClient.deletaChavePix(DeletaKeyRequest.newBuilder()
+                .setPixId(12)
+                .setIdCliente("de95a228-1f27-4ad2-907e-e5a2d816e9bc")
+                .build())
+        }
+
+        with(response){
+            assertEquals(status.code, Status.NOT_FOUND.code)
+            assertEquals(status.description, "Chave não encontrada")
+        }
+    }
+
+    @Test
+    internal fun `a delecao deve ser apenas por quem cadastrou`() {
+        repository.deleteAll()
+
+        val teste = ChavePix("de95a228-1f27-4ad2-907e-e5a2d816e9bc", "31643468081",
+            TiposChavesPix.CPF, TipoConta.CORRENTE)
+        repository.save(teste)
+
+        val response = assertThrows<StatusRuntimeException>{
+            grpcClient.deletaChavePix(DeletaKeyRequest.newBuilder()
+                .setPixId(teste.id!!)
+                .setIdCliente("de86a228-2w27-4ad2-907e-e5a2d816e9wc")
+                .build())
+        }
+
+        with(response){
+            assertEquals(status.code, Status.INVALID_ARGUMENT.code)
+            assertEquals(status.description, "Apenas o dono da chave pode solicitar a deleção")
+        }
     }
 
     @Factory
