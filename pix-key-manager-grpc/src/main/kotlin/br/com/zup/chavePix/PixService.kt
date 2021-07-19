@@ -126,7 +126,7 @@ class PixService(
 
         val deletePixKeyRequest = DeletePixKeyRequest(chave.get().chavePix)
         val deletaKeyResponse = bcbClient.deletaChavePix(chave.get().chavePix, deletePixKeyRequest)
-        
+
         if(deletaKeyResponse.body() == null){
             responseObserver?.onError(Status.ABORTED
                 .withDescription("Erro ao comunicar com o bamco central, tente novamente mais tarde")
