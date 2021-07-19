@@ -5,9 +5,13 @@ import br.com.zup.chavePix.clientBC.*
 import br.com.zup.chavePix.clientErpItau.ErpClient
 import br.com.zup.chavePix.model.ChavePix
 import br.com.zup.chavePix.model.ChavePixRepository
+import com.google.protobuf.Timestamp
 import io.grpc.Status
 import io.grpc.stub.StreamObserver
 import io.micronaut.http.HttpResponse
+import org.jetbrains.annotations.NotNull
+import java.time.ZoneId
+import java.time.ZoneOffset
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -140,5 +144,80 @@ class PixService(
             .build())
         responseObserver?.onCompleted()
 
+    }
+
+    override fun consultaChavePix(request: ConsultaKeyRequest?, responseObserver: StreamObserver<ConsultaKeyResponse>?) {
+
+        if(request!!.hasField(ConsultaKeyRequest.getDescriptor().findFieldByName("pixId"))){
+            val chavePix = repository.findById(request.pixId)
+
+            if(chavePix.isEmpty){
+                responseObserver?.onError(Status.NOT_FOUND
+                    .withDescription("PiXID não consta no sistema")
+                    .asRuntimeException())
+                return
+            }
+
+            if (chavePix.get().idCliente != request!!.idCliente){
+                responseObserver?.onError(Status.INVALID_ARGUMENT
+                    .withDescription("O idCliente invalido para PixId informado")
+                    .asRuntimeException())
+                return
+            }
+
+            val chaveConsultada = bcbClient.consultaChavePix(chavePix.get().chavePix)
+
+            if (chaveConsultada.body() == null){
+                responseObserver?.onError(Status.FAILED_PRECONDITION
+                    .withDescription("Chave não consta no banco central, chave ainda invalida")
+                    .asRuntimeException())
+                return
+            }
+
+            val chaveResponse = chaveConsultada.body()
+            val tipoConta = if(chaveResponse!!.bankAccount.accountType == "CACC") TipoConta.CONTA_CORRENTE else TipoConta.CONTA_POUPANCA
+
+            responseObserver?.onNext(ConsultaKeyResponse.newBuilder()
+                .setTipoChave(chaveResponse.keyType)
+                .setKey(chaveResponse.key)
+                .setNome(chaveResponse.owner.name)
+                .setCpf(chaveResponse.owner.taxIdNumber)
+                .setDadosConta(ConsultaKeyResponse.DadosConta.newBuilder()
+                    .setInstituicao(chaveResponse.bankAccount.participant)
+                    .setAgencia(chaveResponse.bankAccount.branch)
+                    .setNumero(chaveResponse.bankAccount.accountNumber)
+                    .setTipoConta(tipoConta).build())
+                .setDatacriacao(Timestamp.newBuilder().setNanos(chaveResponse.createdAt.nano)
+                    .setSeconds(chaveResponse.createdAt.toEpochSecond(ZoneOffset.UTC)))
+                .setPixId(chavePix.get().id!!)
+                .setIdCliente(chavePix.get().idCliente)
+                .build())
+            responseObserver?.onCompleted()
+        }
+
+        val chaveConsultada = bcbClient.consultaChavePix(request.chave)
+        if (chaveConsultada.body() == null){
+            responseObserver?.onError(Status.INVALID_ARGUMENT
+                .withDescription("Chave não existente")
+                .asRuntimeException())
+            return
+        }
+        val chaveResponse = chaveConsultada.body()
+        val tipoConta = if(chaveResponse!!.bankAccount.accountType == "CACC") TipoConta.CONTA_CORRENTE else TipoConta.CONTA_POUPANCA
+
+        responseObserver?.onNext(ConsultaKeyResponse.newBuilder()
+            .setTipoChave(chaveResponse.keyType)
+            .setKey(chaveResponse.key)
+            .setNome(chaveResponse.owner.name)
+            .setCpf(chaveResponse.owner.taxIdNumber)
+            .setDadosConta(ConsultaKeyResponse.DadosConta.newBuilder()
+                .setInstituicao(chaveResponse.bankAccount.participant)
+                .setAgencia(chaveResponse.bankAccount.branch)
+                .setNumero(chaveResponse.bankAccount.accountNumber)
+                .setTipoConta(tipoConta).build())
+            .setDatacriacao(Timestamp.newBuilder().setNanos(chaveResponse.createdAt.nano)
+                .setSeconds(chaveResponse.createdAt.toEpochSecond(ZoneOffset.UTC)))
+            .build())
+        responseObserver?.onCompleted()
     }
 }

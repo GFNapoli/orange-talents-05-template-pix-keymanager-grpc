@@ -4,12 +4,14 @@ option java_multiple_files = true;
 option java_package = "br.com.zup";
 option java_outer_classname = "PixKeyManagerGrpc";
 option objc_class_prefix = "HLW";
+import "google/protobuf/timestamp.proto";
 
 package br.com.zup;
 
 service PixService {
   rpc novaChavePix (NovaPixKeyRequest) returns (NovaPixKeyResponse) {}
   rpc deletaChavePix (DeletaKeyRequest) returns (DeletaKeyResponse) {}
+  rpc consultaChavePix (ConsultaKeyRequest) returns (ConsultaKeyResponse) {}
 }
 
 enum  TipoChave{
@@ -44,4 +46,27 @@ message DeletaKeyRequest{
 
 message DeletaKeyResponse{
   string mensagem = 1;
+}
+
+message ConsultaKeyRequest{
+  int64 pixId = 1;
+  string idCliente = 2;
+  string chave = 3;
+}
+
+message ConsultaKeyResponse{
+  string tipoChave = 1;
+  string key = 2;
+  string nome= 3;
+  string cpf = 4;
+  message DadosConta{
+    string instituicao = 1;
+    string agencia = 2;
+    string numero = 3;
+    TipoConta tipoConta = 4;
+  }
+  DadosConta dadosConta = 5;
+  google.protobuf.Timestamp datacriacao = 6;
+  int64 pixId = 7;
+  string  idCliente = 8;
 }
