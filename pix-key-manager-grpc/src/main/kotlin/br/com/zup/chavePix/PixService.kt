@@ -1,17 +1,21 @@
 package br.com.zup.chavePix
 
 import br.com.zup.*
+import br.com.zup.chavePix.clientBC.*
 import br.com.zup.chavePix.clientErpItau.ErpClient
+import br.com.zup.chavePix.model.ChavePix
+import br.com.zup.chavePix.model.ChavePixRepository
 import io.grpc.Status
 import io.grpc.stub.StreamObserver
-import java.util.*
+import io.micronaut.http.HttpResponse
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class PixService(
     @Inject val repository: ChavePixRepository,
-    @Inject val erpClient: ErpClient
+    @Inject val erpClient: ErpClient,
+    @Inject val bcbClient: BcbClient
 ): PixServiceGrpc.PixServiceImplBase() {
 
     override fun novaChavePix(request: NovaPixKeyRequest?, responseObserver: StreamObserver<NovaPixKeyResponse>?) {
@@ -20,7 +24,7 @@ class PixService(
             responseObserver?.onError(Status.ALREADY_EXISTS
                 .withDescription("Chave já cadastrada")
                 .asRuntimeException())
-            responseObserver?.onCompleted()
+            return
         }
         val tipoChave = TiposChavesPix.validaChave(request.key)
         if(tipoChave!! != TiposChavesPix.fromValue(request.tipoChave.toString().toLowerCase())
@@ -28,27 +32,77 @@ class PixService(
             responseObserver?.onError(Status.INVALID_ARGUMENT
                 .withDescription("Tipo de chave não condiz com chave recebida ou chave invalida")
                 .asRuntimeException())
-            responseObserver?.onCompleted()
+            return
         }
 
         val dadosErp = erpClient.consultaConta(request.idCliente, request.tipoConta.toString())
-        if(dadosErp .body() == null){
+        if(dadosErp.body() == null){
             responseObserver?.onError(Status.ABORTED
-                .withDescription("erro ao consultar sistema ERP")
+                .withDescription("Erro ao consultar sistema ERP, ou cliente não cadatrado")
                 .asRuntimeException())
-            responseObserver?.onCompleted()
+            return
         }
-        
+
+        val tipoContaBcb: String = if (dadosErp.body()!!.tipo == "CONTA_CORRENTE") "CACC" else "SVGS"
+
+        val bankAccount = BankAccount(
+            dadosErp.body()!!.instituicao.ispb,
+            dadosErp.body()!!.agencia,
+            dadosErp.body()!!.numero,
+            tipoContaBcb
+        )
+        val owner = Owner(
+            "NATURAL_PERSON",
+            dadosErp.body()!!.titular.nome,
+            dadosErp.body()!!.titular.cpf
+        )
+
+        var pixKeyResponse: HttpResponse<CreatePixKeyResponse>? = null
+
         if(tipoChave == TiposChavesPix.RANDOM){
-            val key = UUID.randomUUID().toString()
-            val chavePix = ChavePix(request.idCliente, key, tipoChave, request.tipoConta)
-            repository.save(chavePix)
-            responseObserver?.onNext(NovaPixKeyResponse.newBuilder().setPixId(chavePix.id!!).build())
+            val pixRequest = CreatePixKeyRequest(
+                tipoChave.toString(),
+                "",
+                bankAccount,
+                owner
+            )
+            pixKeyResponse = bcbClient.cadastraChavePix(pixRequest)
         }else{
-            val chavePix = ChavePix(request.idCliente, request.key, tipoChave, request.tipoConta)
-            repository.save(chavePix)
-            responseObserver?.onNext(NovaPixKeyResponse.newBuilder().setPixId(chavePix.id!!).build())
+            if (tipoChave == TiposChavesPix.CPF){
+                if (request.key != dadosErp.body()!!.titular.cpf){
+                    responseObserver?.onError(Status.INVALID_ARGUMENT
+                        .withDescription("O CPF usado como chave não pertence ao solicitante")
+                        .asRuntimeException())
+                    return
+                }
+            }
+            val pixRequest = CreatePixKeyRequest(
+                tipoChave.toString(),
+                request.key,
+                bankAccount,
+                owner
+            )
+            pixKeyResponse = bcbClient.cadastraChavePix(pixRequest)
         }
+
+        if(pixKeyResponse.body() == null){
+            responseObserver?.onError(Status.ABORTED
+                .withDescription("Erro durante a comunicação com o Banco Central")
+                .asRuntimeException())
+            return
+        }
+
+        val chavePix = ChavePix(
+            dadosErp.body()!!.titular.id,
+            pixKeyResponse.body()!!.key,
+            tipoChave,
+            request.tipoConta,
+            pixKeyResponse.body()!!.createdAt
+        )
+
+        repository.save(chavePix)
+
+        responseObserver?.onNext(NovaPixKeyResponse.newBuilder().setPixId(chavePix.id!!).build())
         responseObserver?.onCompleted()
     }
 
@@ -63,10 +117,19 @@ class PixService(
             return
         }
 
-        println(chave.get().idCliente != request!!.idCliente)
         if(chave.get().idCliente != request!!.idCliente){
             responseObserver?.onError(Status.INVALID_ARGUMENT
                 .withDescription("Apenas o dono da chave pode solicitar a deleção")
+                .asRuntimeException())
+            return
+        }
+
+        val deletePixKeyRequest = DeletePixKeyRequest(chave.get().chavePix)
+        val deletaKeyResponse = bcbClient.deletaChavePix(chave.get().chavePix, deletePixKeyRequest)
+        
+        if(deletaKeyResponse.body() == null){
+            responseObserver?.onError(Status.ABORTED
+                .withDescription("Erro ao comunicar com o bamco central, tente novamente mais tarde")
                 .asRuntimeException())
             return
         }

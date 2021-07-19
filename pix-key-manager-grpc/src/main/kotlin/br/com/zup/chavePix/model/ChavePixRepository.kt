@@ -1,4 +1,4 @@
-package br.com.zup.chavePix
+package br.com.zup.chavePix.model
 
 import io.micronaut.data.annotation.Repository
 import io.micronaut.data.jpa.repository.JpaRepository

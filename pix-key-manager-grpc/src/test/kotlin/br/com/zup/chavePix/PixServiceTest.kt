@@ -1,6 +1,8 @@
 package br.com.zup.chavePix
 
 import br.com.zup.*
+import br.com.zup.chavePix.model.ChavePix
+import br.com.zup.chavePix.model.ChavePixRepository
 import io.grpc.ManagedChannel
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -11,7 +13,7 @@ import io.micronaut.test.extensions.junit5.annotation.MicronautTest
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
-import javax.inject.Inject
+import java.time.LocalDateTime
 import javax.inject.Singleton
 
 @MicronautTest(transactional = false)
@@ -26,7 +28,7 @@ internal class PixServiceTest(
             .setIdCliente("5260263c-a3c1-4727-ae32-3bdb2538841b")
             .setKey("86135457004")
             .setTipoChave(TipoChave.CPF)
-            .setTipoConta(TipoConta.CORRENTE)
+            .setTipoConta(TipoConta.CONTA_CORRENTE)
             .build())
 
         with(response){
@@ -40,7 +42,7 @@ internal class PixServiceTest(
         repository.deleteAll()
 
         val teste = ChavePix("de95a228-1f27-4ad2-907e-e5a2d816e9bc", "31643468081",
-            TiposChavesPix.CPF, TipoConta.CORRENTE)
+            TiposChavesPix.CPF, TipoConta.CONTA_CORRENTE, LocalDateTime.now())
         repository.save(teste)
         val response = assertThrows<StatusRuntimeException>{
             grpcClient.novaChavePix(NovaPixKeyRequest.newBuilder()
@@ -65,7 +67,7 @@ internal class PixServiceTest(
                 .setIdCliente("5260263c-a3c1-4727-ae32-3bdb2538841b")
                 .setKey("861354sd5700415965482a456ss")
                 .setTipoChave(TipoChave.CPF)
-                .setTipoConta(TipoConta.CORRENTE)
+                .setTipoConta(TipoConta.CONTA_CORRENTE)
                 .build())
         }
         with(response){
@@ -79,7 +81,7 @@ internal class PixServiceTest(
         repository.deleteAll()
 
         val teste = ChavePix("de95a228-1f27-4ad2-907e-e5a2d816e9bc", "31643468081",
-            TiposChavesPix.CPF, TipoConta.CORRENTE)
+            TiposChavesPix.CPF, TipoConta.CONTA_CORRENTE, LocalDateTime.now())
         repository.save(teste)
 
         val response = grpcClient.deletaChavePix(DeletaKeyRequest.newBuilder()
@@ -115,7 +117,7 @@ internal class PixServiceTest(
         repository.deleteAll()
 
         val teste = ChavePix("de95a228-1f27-4ad2-907e-e5a2d816e9bc", "31643468081",
-            TiposChavesPix.CPF, TipoConta.CORRENTE)
+            TiposChavesPix.CPF, TipoConta.CONTA_CORRENTE, LocalDateTime.now())
         repository.save(teste)
 
         val response = assertThrows<StatusRuntimeException>{
