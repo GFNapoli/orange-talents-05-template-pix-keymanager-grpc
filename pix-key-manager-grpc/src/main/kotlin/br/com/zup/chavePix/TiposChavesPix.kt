@@ -3,9 +3,9 @@ package br.com.zup.chavePix
 enum class TiposChavesPix(val tipoChave: String) {
 
     CPF("cpf"),
-    TELEFONE("telefone"),
+    PHONE("telefone"),
     EMAIL("email"),
-    ALEATORIA("aleatoria"),
+    RANDOM ("aleatoria"),
     INVALIDA("invalida");
 
     companion object {

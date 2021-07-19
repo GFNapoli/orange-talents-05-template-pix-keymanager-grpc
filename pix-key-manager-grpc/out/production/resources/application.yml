@@ -14,4 +14,4 @@ jpa.default.properties.hibernate.hbm2ddl.auto: update
 #variaveis
 app:
   bcbUrl: ${BCB_URL:`http://localhost:8082/api/v1/pix/keys`}
-  erpUrl: ${ERP_URL:`http://localhost:9091/api/v1/clientes`}
+  erpUrl: ${ERP_URL:`http://localhost:9091/api/v1`}

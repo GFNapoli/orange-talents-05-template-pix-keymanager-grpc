@@ -1,6 +1,7 @@
 package br.com.zup.chavePix
 
 import br.com.zup.*
+import br.com.zup.chavePix.clientErpItau.ErpClient
 import io.grpc.Status
 import io.grpc.stub.StreamObserver
 import java.util.*
@@ -8,7 +9,10 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class PixService(@Inject val repository: ChavePixRepository): PixServiceGrpc.PixServiceImplBase() {
+class PixService(
+    @Inject val repository: ChavePixRepository,
+    @Inject val erpClient: ErpClient
+): PixServiceGrpc.PixServiceImplBase() {
 
     override fun novaChavePix(request: NovaPixKeyRequest?, responseObserver: StreamObserver<NovaPixKeyResponse>?) {
 
@@ -27,14 +31,21 @@ class PixService(@Inject val repository: ChavePixRepository): PixServiceGrpc.Pix
             responseObserver?.onCompleted()
         }
 
-        val idCliente = UUID.fromString(request.idCliente).toString()
-        if(tipoChave == TiposChavesPix.ALEATORIA){
+        val dadosErp = erpClient.consultaConta(request.idCliente, request.tipoConta.toString())
+        if(dadosErp .body() == null){
+            responseObserver?.onError(Status.ABORTED
+                .withDescription("erro ao consultar sistema ERP")
+                .asRuntimeException())
+            responseObserver?.onCompleted()
+        }
+        
+        if(tipoChave == TiposChavesPix.RANDOM){
             val key = UUID.randomUUID().toString()
-            val chavePix = ChavePix(idCliente, key, tipoChave, request.tipoConta)
+            val chavePix = ChavePix(request.idCliente, key, tipoChave, request.tipoConta)
             repository.save(chavePix)
             responseObserver?.onNext(NovaPixKeyResponse.newBuilder().setPixId(chavePix.id!!).build())
         }else{
-            val chavePix = ChavePix(idCliente, request.key, tipoChave, request.tipoConta)
+            val chavePix = ChavePix(request.idCliente, request.key, tipoChave, request.tipoConta)
             repository.save(chavePix)
             responseObserver?.onNext(NovaPixKeyResponse.newBuilder().setPixId(chavePix.id!!).build())
         }
