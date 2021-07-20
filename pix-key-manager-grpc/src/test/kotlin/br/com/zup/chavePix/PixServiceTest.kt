@@ -2,6 +2,10 @@ package br.com.zup.chavePix
 
 import br.com.zup.*
 import br.com.zup.chavePix.clientBC.*
+import br.com.zup.chavePix.clientErpItau.ContaResponse
+import br.com.zup.chavePix.clientErpItau.ErpClient
+import br.com.zup.chavePix.clientErpItau.Instituicao
+import br.com.zup.chavePix.clientErpItau.Titular
 import br.com.zup.chavePix.model.ChavePix
 import br.com.zup.chavePix.model.ChavePixRepository
 import io.grpc.ManagedChannel
@@ -25,7 +29,8 @@ import javax.inject.Singleton
 internal class PixServiceTest(
     val grpcClient: PixServiceGrpc.PixServiceBlockingStub,
     val repository: ChavePixRepository,
-    val bcbClient: BcbClient
+    val bcbClient: BcbClient,
+    val erpClient: ErpClient
 ){
     @Test
     internal fun `deve retornar o id da chave pix`() {
@@ -36,6 +41,12 @@ internal class PixServiceTest(
         val mockRequest = CreatePixKeyRequest(TiposChavesPix.CPF.toString(), "02467781054", bankAccount, owner)
         val mockResponse = CreatePixKeyResponse(TiposChavesPix.CPF.toString(),"02467781054", bankAccount, owner, LocalDateTime.now())
         Mockito.`when`(bcbClient.cadastraChavePix(mockRequest)).thenReturn(HttpResponse.ok(mockResponse))
+
+        val instituicao = Instituicao("Itau", "60701190")
+        val titular = Titular("c56dfef4-7901-44fb-84e2-a2cefb157890", "Rafael M C Ponte", "02467781054")
+        val contaResponse = ContaResponse("CONTA_CORRENTE", instituicao, "0001", "291900", titular)
+        Mockito.`when`(erpClient.consultaConta("c56dfef4-7901-44fb-84e2-a2cefb157890", TipoConta.CONTA_CORRENTE.toString()))
+            .thenReturn(HttpResponse.ok(contaResponse))
 
         val response = grpcClient.novaChavePix(NovaPixKeyRequest.newBuilder()
             .setIdCliente("c56dfef4-7901-44fb-84e2-a2cefb157890")
@@ -53,11 +64,19 @@ internal class PixServiceTest(
     @Test
     internal fun `deve criar uma chave aleatoria`() {
         repository.deleteAll()
+
         val bankAccount = BankAccount("60701190", "0001", "291900", "CACC")
         val owner = Owner("NATURAL_PERSON", "Rafael M C Ponte", "02467781054")
         val mockRequest = CreatePixKeyRequest(TiposChavesPix.RANDOM.toString(), "", bankAccount, owner)
         val mockResponse = CreatePixKeyResponse(TiposChavesPix.RANDOM.toString(),"12a6s4d65a4s56das2d1", bankAccount, owner, LocalDateTime.now())
         Mockito.`when`(bcbClient.cadastraChavePix(mockRequest)).thenReturn(HttpResponse.ok(mockResponse))
+
+        val instituicao = Instituicao("Itau", "60701190")
+        val titular = Titular("c56dfef4-7901-44fb-84e2-a2cefb157890", "Rafael M C Ponte", "02467781054")
+        val contaResponse = ContaResponse("CONTA_CORRENTE", instituicao, "0001", "291900", titular)
+        Mockito.`when`(erpClient.consultaConta("c56dfef4-7901-44fb-84e2-a2cefb157890", TipoConta.CONTA_CORRENTE.toString()))
+            .thenReturn(HttpResponse.ok(contaResponse))
+
         val response = grpcClient.novaChavePix(NovaPixKeyRequest.newBuilder()
             .setIdCliente("c56dfef4-7901-44fb-84e2-a2cefb157890")
             .setKey("")
@@ -98,6 +117,7 @@ internal class PixServiceTest(
     @Test
     internal fun `deve retornar erro tipo de chave invalida`() {
         repository.deleteAll()
+
         val response = assertThrows<StatusRuntimeException>{
             grpcClient.novaChavePix(NovaPixKeyRequest.newBuilder()
                 .setIdCliente("5260263c-a3c1-4727-ae32-3bdb2538841b")
@@ -176,9 +196,115 @@ internal class PixServiceTest(
         }
     }
 
+    @Test
+    internal fun `deve consultar pela id Pix e o idCliente`() {
+        repository.deleteAll()
+
+        val testeUser = ChavePix(
+            "c56dfef4-7901-44fb-84e2-a2cefb157890",
+            "02467781054",
+            TiposChavesPix.CPF,
+            TipoConta.CONTA_CORRENTE,
+            LocalDateTime.now()
+        )
+        repository.save(testeUser)
+
+        val bankAccount = BankAccount("60701190", "0001", "291900", "CACC")
+        val owner = Owner("Natural_Person", "Rafael M C Ponte", "02467781054")
+        val pixKeyDetailsResponse = PixKeyDetailsResponse("CPF", "02467781054", bankAccount, owner, LocalDateTime.now())
+        Mockito.`when`(bcbClient.consultaChavePix("02467781054"))
+            .thenReturn(HttpResponse.ok(pixKeyDetailsResponse))
+
+        val response = grpcClient.consultaChavePix(ConsultaKeyRequest.newBuilder()
+            .setPixId(testeUser.id!!)
+            .setIdCliente(testeUser.idCliente)
+            .build())
+
+        with(response){
+            assertNotNull(response.key)
+            assertTrue(repository.existsByChavePix(response.key))
+        }
+    }
+
+    @Test
+    internal fun `deve consultar pela chave pix`() {
+        repository.deleteAll()
+
+        val testeUser = ChavePix(
+            "c56dfef4-7901-44fb-84e2-a2cefb157890",
+            "02467781054",
+            TiposChavesPix.CPF,
+            TipoConta.CONTA_CORRENTE,
+            LocalDateTime.now()
+        )
+        repository.save(testeUser)
+
+        val bankAccount = BankAccount("60701190", "0001", "291900", "CACC")
+        val owner = Owner("Natural_Person", "Rafael M C Ponte", "02467781054")
+        val pixKeyDetailsResponse = PixKeyDetailsResponse("CPF", "02467781054", bankAccount, owner, LocalDateTime.now())
+        Mockito.`when`(bcbClient.consultaChavePix("02467781054"))
+            .thenReturn(HttpResponse.ok(pixKeyDetailsResponse))
+
+        val response = grpcClient.consultaChavePix(ConsultaKeyRequest.newBuilder()
+            .setChave(testeUser.chavePix)
+            .build())
+
+        with(response){
+            assertNotNull(response.key)
+            assertTrue(repository.existsByChavePix(response.key))
+        }
+    }
+
+    @Test
+    internal fun `erro ao consultar por id não cadastrado`() {
+        repository.deleteAll()
+
+        val response = assertThrows<StatusRuntimeException> {
+            grpcClient.consultaChavePix(ConsultaKeyRequest.newBuilder()
+                .setPixId(12)
+                .setIdCliente("c56dfef4-7901-44fb-84e2-a2cefb157890")
+                .build())
+        }
+
+        with(response){
+            assertEquals(Status.NOT_FOUND.code, response.status.code)
+            assertEquals(response.message, "NOT_FOUND: PiXID não consta no sistema")
+        }
+    }
+
+    @Test
+    internal fun `erro ao consultar id não pertecente ao cliente`() {
+        repository.deleteAll()
+
+        val testeUser = ChavePix(
+            "c56dfef4-7901-44fb-84e2-a2cefb157890",
+            "02467781054",
+            TiposChavesPix.CPF,
+            TipoConta.CONTA_CORRENTE,
+            LocalDateTime.now()
+        )
+        repository.save(testeUser)
+
+        val response = assertThrows<StatusRuntimeException> {
+            grpcClient.consultaChavePix(ConsultaKeyRequest.newBuilder()
+                .setPixId(testeUser.id!!)
+                .setIdCliente("c56dfef4-7901-44fb-84e2-a2cefb157889")
+                .build())
+        }
+
+        with(response){
+            assertEquals(Status.INVALID_ARGUMENT.code, response.status.code)
+            assertEquals(response.message, "INVALID_ARGUMENT: O idCliente invalido para PixId informado")
+        }
+    }
+
     @MockBean(BcbClient::class)
     fun bcbMock(): BcbClient{
         return Mockito.mock(BcbClient::class.java)
+    }
+    @MockBean(ErpClient::class)
+    fun erpMock(): ErpClient{
+        return Mockito.mock(ErpClient::class.java)
     }
 
     @Factory
