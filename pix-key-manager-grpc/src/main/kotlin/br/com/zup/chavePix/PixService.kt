@@ -187,11 +187,15 @@ class PixService(
                     .setAgencia(chaveResponse.bankAccount.branch)
                     .setNumero(chaveResponse.bankAccount.accountNumber)
                     .setTipoConta(tipoConta).build())
-                .setDatacriacao(Timestamp.newBuilder().setNanos(chaveResponse.createdAt.nano)
-                    .setSeconds(chaveResponse.createdAt.toEpochSecond(ZoneOffset.UTC)))
-                .setPixId(chavePix.get().id!!)
-                .setIdCliente(chavePix.get().idCliente)
-                .build())
+                .setDatacriacao(chaveResponse.let {
+                    val data = it.createdAt.atZone(ZoneId.of("UTC")).toInstant()
+                    Timestamp.newBuilder().setNanos(data.nano)
+                        .setSeconds(data.epochSecond)
+                        .build()
+                })
+                    .setPixId(chavePix.get().id!!)
+                    .setIdCliente(chavePix.get().idCliente)
+                    .build())
             responseObserver?.onCompleted()
         }
 
@@ -215,8 +219,44 @@ class PixService(
                 .setAgencia(chaveResponse.bankAccount.branch)
                 .setNumero(chaveResponse.bankAccount.accountNumber)
                 .setTipoConta(tipoConta).build())
-            .setDatacriacao(Timestamp.newBuilder().setNanos(chaveResponse.createdAt.nano)
-                .setSeconds(chaveResponse.createdAt.toEpochSecond(ZoneOffset.UTC)))
+            .setDatacriacao(chaveResponse.let {
+                val data = it.createdAt.atZone(ZoneId.of("UTC")).toInstant()
+                Timestamp.newBuilder().setNanos(data.nano)
+                    .setSeconds(data.epochSecond)
+                    .build()
+            })
+            .build())
+        responseObserver?.onCompleted()
+    }
+
+    override fun listaChavesPix(request: ListaKeyRequest?, responseObserver: StreamObserver<ListaKeyResponse>?) {
+
+        if (request!!.idCliente.isNullOrBlank()){
+            responseObserver?.onError(Status.INVALID_ARGUMENT
+                .withDescription("O campo não pode estar vasio ou nulo, por favor tente novamente")
+                .asRuntimeException())
+            return
+        }
+
+        val listaChaves = repository.findByIdCliente(request.idCliente)
+
+        responseObserver?.onNext(ListaKeyResponse.newBuilder()
+            .setIdCliente(request.idCliente)
+            .addAllDadosChave(listaChaves.map {
+                ListaKeyResponse.DadosChave.newBuilder()
+                    .setPixId(it.id!!)
+                    .setTipoChave(it.tipoChavePix.toString())
+                    .setChave(it.chavePix)
+                    .setTipoConta(it.tipoConta)
+                    .setDatacriacao(it.let {
+                        val data = it.criadoEm.atZone(ZoneId.of("UTC")).toInstant()
+                        Timestamp.newBuilder()
+                            .setSeconds(data.epochSecond)
+                            .setNanos(data.nano)
+                            .build()
+                    })
+                    .build()
+            })
             .build())
         responseObserver?.onCompleted()
     }

@@ -12,6 +12,7 @@ service PixService {
   rpc novaChavePix (NovaPixKeyRequest) returns (NovaPixKeyResponse) {}
   rpc deletaChavePix (DeletaKeyRequest) returns (DeletaKeyResponse) {}
   rpc consultaChavePix (ConsultaKeyRequest) returns (ConsultaKeyResponse) {}
+  rpc listaChavesPix (ListaKeyRequest) returns (ListaKeyResponse) {}
 }
 
 enum  TipoChave{
@@ -69,4 +70,20 @@ message ConsultaKeyResponse{
   google.protobuf.Timestamp datacriacao = 6;
   int64 pixId = 7;
   string  idCliente = 8;
+}
+
+message ListaKeyRequest{
+  string idCliente = 1;
+}
+
+message ListaKeyResponse{
+  message DadosChave{
+    int64 pixId = 1;
+    string tipoChave = 2;
+    string chave = 3;
+    TipoConta tipoConta = 4;
+    google.protobuf.Timestamp datacriacao = 5;
+  }
+  string idCliente = 1;
+  repeated DadosChave dadosChave = 2;
 }
